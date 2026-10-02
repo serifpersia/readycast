@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="background">#FF0B0B0D</color>
+    <color name="surface">#FF141417</color>
+    <color name="surface_container">#FF1C1C21</color>
+    <color name="surface_container_high">#FF26262C</color>
+    <color name="on_surface">#FFF2F2F7</color>
+    <color name="on_surface_variant">#FF9E9EA8</color>
+    <color name="outline">#FF3A3A42</color>
+    <color name="accent">#FF0A84FF</color>
+    <color name="white">#FFFFFFFF</color>
+    <color name="danger">#FFFF453A</color>
+    <color name="ic_launcher_background">#FF0F0F0F</color>
+</resources>

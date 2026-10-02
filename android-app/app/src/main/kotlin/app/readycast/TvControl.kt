@@ -1,0 +1,71 @@
+package app.readycast
+
+import android.util.Log
+import com.connectsdk.device.ConnectableDevice
+import com.connectsdk.service.capability.PowerControl
+import com.connectsdk.service.capability.VolumeControl
+import com.connectsdk.service.capability.listeners.ResponseListener
+import com.connectsdk.service.command.ServiceCommandError
+
+object TvControl {
+    private const val TAG = "TVCTL"
+
+    @Volatile private var muted = false
+
+    private fun listener(what: String, status: (String, Boolean) -> Unit, done: String? = null) =
+        object : ResponseListener<Any> {
+            override fun onSuccess(responseObject: Any) {
+                Log.d(TAG, "$what ok")
+                if (done != null) status(done, false)
+            }
+
+            override fun onError(error: ServiceCommandError) {
+                Log.e(TAG, "$what failed: $error")
+                status("$what failed: ${error.message}", true)
+            }
+        }
+
+    private inline fun withVolume(
+        device: ConnectableDevice,
+        what: String,
+        status: (String, Boolean) -> Unit,
+        block: (VolumeControl) -> Unit
+    ) {
+        val vol = device.getCapability(VolumeControl::class.java)
+        if (vol == null) {
+            status("TV has no volume control", true)
+            return
+        }
+        block(vol)
+    }
+
+    fun volumeUp(device: ConnectableDevice, status: (String, Boolean) -> Unit) =
+        withVolume(device, "volumeUp", status) { it.volumeUp(listener("volumeUp", status)) }
+
+    fun volumeDown(device: ConnectableDevice, status: (String, Boolean) -> Unit) =
+        withVolume(device, "volumeDown", status) { it.volumeDown(listener("volumeDown", status)) }
+
+    fun toggleMute(device: ConnectableDevice, status: (String, Boolean) -> Unit) =
+        withVolume(device, "mute", status) {
+            muted = !muted
+            it.setMute(muted, listener("mute", status, if (muted) "TV muted" else "TV unmuted"))
+        }
+
+    fun powerOff(device: ConnectableDevice, status: (String, Boolean) -> Unit) {
+        val power = device.getCapability(PowerControl::class.java)
+        if (power == null) {
+            status("TV has no power control", true)
+            return
+        }
+        power.powerOff(listener("powerOff", status, "TV powering off"))
+    }
+
+    fun powerOn(device: ConnectableDevice, status: (String, Boolean) -> Unit) {
+        val power = device.getCapability(PowerControl::class.java)
+        if (power == null) {
+            status("TV has no power control", true)
+            return
+        }
+        power.powerOn(listener("powerOn", status, "TV powering on"))
+    }
+}

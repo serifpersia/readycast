@@ -1,0 +1,22 @@
+# Build output
+android-app/app/build/
+android-app/build/
+android-app/connectsdk/build/
+android-app/.gradle/
+android-app/.kotlin/
+android-app/local.properties
+*.apk
+*.aab
+*.class
+
+# Signing key - never commit. Generate your own; see README.
+android-app/*.keystore
+android-app/*.jks
+
+# Fetched at build time by fetch-deps.bat/.sh - not redistributable, see README
+android-app/connectsdk/libs/*.jar
+android-app/connectsdk/jniLibs/
+
+# Tooling scratch
+*.pcap
+*.log
