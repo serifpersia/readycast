@@ -5,12 +5,16 @@ cd "$(dirname "$0")"
 REF=2f7ebbc7eb909321ff41b2c6bcdf6b0881427579
 BASE="https://raw.githubusercontent.com/ConnectSDK/Connect-SDK-Android-Core/$REF"
 
-echo "=== DeskCast: fetching binary dependencies ==="
+echo "=== readycast: fetching binary dependencies ==="
 
 mkdir -p connectsdk/libs connectsdk/jniLibs
 
+i=0
+total=7
+
 if [ ! -f connectsdk/libs/lgcast-android-lib.jar ]; then
-  echo "[1/7] lgcast-android-lib.jar"
+  i=$((i + 1))
+  echo "[$i/$total] lgcast-android-lib.jar"
   curl -fsSL -o connectsdk/libs/lgcast-android-lib.jar "$BASE/libs/lgcast-android-lib.jar" || {
     echo ""
     echo "[!] Download failed. These binaries are not redistributable, so they are fetched"
@@ -27,7 +31,8 @@ for abi in arm64-v8a armeabi-v7a; do
   mkdir -p "connectsdk/jniLibs/$abi"
   for lib in libc++_shared.so libgstreamer_android.so libgstreamer-appcast.so; do
     if [ ! -f "connectsdk/jniLibs/$abi/$lib" ]; then
-      echo "[n] $abi/$lib"
+      i=$((i + 1))
+      echo "[$i/$total] $abi/$lib"
       curl -fsSL -o "connectsdk/jniLibs/$abi/$lib" "$BASE/jniLibs/$abi/$lib" || exit 1
     fi
   done

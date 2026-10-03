@@ -26,6 +26,7 @@ object SdkMirror {
     }
 
     private fun onDevice(device: ConnectableDevice) {
+        if (mirror != null) return
         discovered = device
         val mir = try {
             device.getCapability(ScreenMirroringControl::class.java)

@@ -2,16 +2,18 @@
 
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.graphics.Color
 import android.graphics.drawable.GradientDrawable
 import android.hardware.display.DisplayManager
 import android.media.projection.MediaProjectionManager
+import android.os.Build
 import android.os.Bundle
 import android.util.Log
-import android.util.TypedValue
 import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
+import android.widget.AdapterView
 import android.widget.ArrayAdapter
 import android.widget.LinearLayout
 import android.widget.ScrollView
@@ -26,30 +28,24 @@ import com.connectsdk.service.webos.lgcast.screenmirroring.service.MirroringServ
 
 class MainActivity : AppCompatActivity() {
     companion object {
-        const val TV_IP = "192.168.1.24"
         const val MAIN_DISPLAY = 0
         private const val REQUEST_SHIZUKU = 4242
         val RESOLUTIONS = listOf(1920 to 1080, 1280 to 720, 960 to 540, 854 to 480)
         const val BITRATE_MIN_MBPS = 1
         const val BITRATE_MAX_MBPS = 50
         const val FPS_MIN = 15
-        const val FPS_MAX = 240
+        const val FPS_MAX = 60
         const val FPS_STEP = 5
 
         @Volatile var mirroring = false
         @Volatile var externalRunning = false
     }
 
-    private val bg = Color.BLACK
-    private val chipBg = Color.parseColor("#141416")
-    private val accent = Color.parseColor("#0A84FF")
-    private val danger = Color.parseColor("#FF453A")
-    private val fg = Color.parseColor("#F2F2F7")
-    private val dim = Color.parseColor("#8E8E93")
-
     private lateinit var status: TextView
+    private lateinit var statusDot: View
     private lateinit var toggle: MaterialButton
     private lateinit var source: Spinner
+    private lateinit var encoderCard: LinearLayout
     private lateinit var resSpinner: Spinner
     private lateinit var bitrateBar: SeekBar
     private lateinit var bitrateLabel: TextView
@@ -62,7 +58,9 @@ class MainActivity : AppCompatActivity() {
         if (it.resultCode == RESULT_OK && it.data != null) {
             val ext = pendingExternal
             pendingExternal = false
-            if (ext) startExternal(it.data!!) else SdkMirror.start(this, it.data!!, false, ::say)
+            if (ext) startExternal(it.data!!) else SdkMirror.start(this, it.data!!, false, ::say) { started ->
+                if (!started) runOnUiThread { stop() }
+            }
         } else {
             pendingExternal = false
             pendingCapture = false
@@ -74,6 +72,11 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         buildUi()
+        if (Build.VERSION.SDK_INT >= 33 &&
+            checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+        ) {
+            requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS), 4243)
+        }
     }
 
     private fun dp(v: Int) = (v * resources.displayMetrics.density).toInt()
@@ -120,12 +123,22 @@ class MainActivity : AppCompatActivity() {
     private fun buildUi() {
         val fgC = resources.getColor(R.color.on_surface, null)
         val dimC = resources.getColor(R.color.on_surface_variant, null)
+        statusDot = View(this).apply {
+            background = pillDrawable(dimC, 6)
+        }
         status = TextView(this).apply {
+            text = "Idle."
             textSize = 14f
             setTextColor(dimC)
-            setPadding(dp(4), dp(6), dp(4), dp(6))
         }
         source = spinner(listOf("Main display (phone)", "External display (desktop)"))
+        source.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
+                // LG encodes the main display itself; our settings only feed the external path.
+                if (::encoderCard.isInitialized) encoderCard.visibility = if (position == 0) View.GONE else View.VISIBLE
+            }
+            override fun onNothingSelected(parent: AdapterView<*>?) = Unit
+        }
         resSpinner = spinner(RESOLUTIONS.map { "${it.first}x${it.second}" })
         bitrateLabel = TextView(this).apply {
             setTextColor(fgC)
@@ -181,25 +194,56 @@ class MainActivity : AppCompatActivity() {
                             text = "readycast"
                             setTextColor(fgC)
                             textSize = 28f
+                            setPadding(dp(2), 0, dp(2), dp(2))
+                        }
+                    )
+                    addView(
+                        TextView(this@MainActivity).apply {
+                            text = "Secondary-display casting for LG webOS"
+                            setTextColor(dimC)
+                            textSize = 13f
                             setPadding(dp(2), 0, dp(2), dp(18))
                         }
                     )
                     addView(card("SOURCE", source), spaced(top = 0))
                     addView(toggle, spaced(top = 16))
+                    encoderCard = card(
+                        "ENCODER",
+                        LinearLayout(this@MainActivity).apply {
+                            orientation = LinearLayout.VERTICAL
+                            addView(resSpinner, spaced(top = 2))
+                            addView(row(bitrateLabel, bitrateBar), spaced(top = 12))
+                            addView(row(fpsLabel, fpsBar), spaced(top = 12))
+                        }
+                    )
+                    encoderCard.visibility = if (source.selectedItemPosition == 0) View.GONE else View.VISIBLE
+                    addView(encoderCard, spaced(top = 16))
+                    addView(card("REMOTE", remoteLayout()), spaced(top = 16))
                     addView(
                         card(
-                            "ENCODER",
+                            "STATUS",
                             LinearLayout(this@MainActivity).apply {
-                                orientation = LinearLayout.VERTICAL
-                                addView(resSpinner, spaced(top = 2))
-                                addView(row(bitrateLabel, bitrateBar), spaced(top = 12))
-                                addView(row(fpsLabel, fpsBar), spaced(top = 12))
+                                orientation = LinearLayout.HORIZONTAL
+                                gravity = Gravity.CENTER_VERTICAL
+                                addView(statusDot, LinearLayout.LayoutParams(dp(10), dp(10)))
+                                addView(
+                                    status,
+                                    LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
+                                        .apply { leftMargin = dp(10) }
+                                )
                             }
                         ),
                         spaced(top = 16)
                     )
-                    addView(card("REMOTE", remoteLayout()), spaced(top = 16))
-                    addView(status, spaced(top = 16))
+                    addView(
+                        TextView(this@MainActivity).apply {
+                            text = "v${appVersion()}"
+                            setTextColor(dimC)
+                            textSize = 12f
+                            gravity = Gravity.CENTER
+                        },
+                        spaced(top = 16)
+                    )
                 }
             )
         }
@@ -225,6 +269,7 @@ class MainActivity : AppCompatActivity() {
         mirroring = true
         toggle.text = "Stop mirroring"
         toggle.setBackgroundColor(resources.getColor(R.color.danger, null))
+        setControlsEnabled(false)
         start()
     }
 
@@ -232,6 +277,20 @@ class MainActivity : AppCompatActivity() {
         mirroring = false
         toggle.text = "Start mirroring"
         toggle.setBackgroundColor(resources.getColor(R.color.accent, null))
+        setControlsEnabled(true)
+    }
+
+    private fun setControlsEnabled(on: Boolean) {
+        source.isEnabled = on
+        resSpinner.isEnabled = on
+        bitrateBar.isEnabled = on
+        fpsBar.isEnabled = on
+    }
+
+    private fun appVersion(): String = try {
+        packageManager.getPackageInfo(packageName, 0).versionName ?: ""
+    } catch (_: Exception) {
+        ""
     }
 
     private fun syncUi() {
@@ -239,6 +298,7 @@ class MainActivity : AppCompatActivity() {
         toggle.setBackgroundColor(
             resources.getColor(if (mirroring) R.color.danger else R.color.accent, null)
         )
+        setControlsEnabled(!mirroring)
     }
 
     private fun spaced(top: Int = 10) = LinearLayout.LayoutParams(
@@ -264,7 +324,7 @@ class MainActivity : AppCompatActivity() {
         return LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             addView(remoteButton("Vol +", true) { withTv { TvControl.volumeUp(it, ::say) } }, lp(0))
-            addView(remoteButton("Vol âˆ’") { withTv { TvControl.volumeDown(it, ::say) } }, lp(10))
+            addView(remoteButton("Vol –") { withTv { TvControl.volumeDown(it, ::say) } }, lp(10))
             addView(remoteButton("Mute") { withTv { TvControl.toggleMute(it, ::say) } }, lp(26))
         }
     }
@@ -396,7 +456,7 @@ class MainActivity : AppCompatActivity() {
         pendingCapture = false
         if (externalRunning) {
             externalRunning = false
-            startService(Intent(this, StreamService::class.java).setAction("STOP"))
+            startForegroundService(Intent(this, StreamService::class.java).setAction("STOP"))
         }
         SdkMirror.stop { s, _ -> say(s, false) }
     }
@@ -419,10 +479,16 @@ class MainActivity : AppCompatActivity() {
         if (bad && s.startsWith("Mirror error")) runOnUiThread { stop() }
         runOnUiThread {
             status.text = s
+            val dot = when {
+                bad -> resources.getColor(R.color.danger, null)
+                mirroring -> Color.parseColor("#30D158")
+                else -> resources.getColor(R.color.on_surface_variant, null)
+            }
             status.setTextColor(
                 if (bad) resources.getColor(R.color.danger, null)
                 else resources.getColor(R.color.on_surface_variant, null)
             )
+            statusDot.background = pillDrawable(dot, 6)
         }
     }
 }
