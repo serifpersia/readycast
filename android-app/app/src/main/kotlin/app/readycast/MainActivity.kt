@@ -37,7 +37,6 @@ class MainActivity : AppCompatActivity() {
         const val FPS_STEP = 5
 
         @Volatile var mirroring = false
-        @Volatile var powerOn = false
         @Volatile var externalRunning = false
     }
 
@@ -50,7 +49,6 @@ class MainActivity : AppCompatActivity() {
 
     private lateinit var status: TextView
     private lateinit var toggle: MaterialButton
-    private lateinit var powerBtn: MaterialButton
     private lateinit var source: Spinner
     private lateinit var resSpinner: Spinner
     private lateinit var bitrateBar: SeekBar
@@ -241,10 +239,6 @@ class MainActivity : AppCompatActivity() {
         toggle.setBackgroundColor(
             resources.getColor(if (mirroring) R.color.danger else R.color.accent, null)
         )
-        powerBtn.text = if (powerOn) "Power  on" else "Power  off"
-        powerBtn.setBackgroundColor(
-            resources.getColor(if (powerOn) R.color.accent else android.R.color.transparent, null)
-        )
     }
 
     private fun spaced(top: Int = 10) = LinearLayout.LayoutParams(
@@ -267,22 +261,12 @@ class MainActivity : AppCompatActivity() {
                 minimumHeight = dp(54)
                 setOnClickListener { onClick() }
             }
-        powerBtn = remoteButton("Power  off") { powerOn = !powerOn; renderPower() }
         return LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             addView(remoteButton("Vol +", true) { withTv { TvControl.volumeUp(it, ::say) } }, lp(0))
             addView(remoteButton("Vol âˆ’") { withTv { TvControl.volumeDown(it, ::say) } }, lp(10))
             addView(remoteButton("Mute") { withTv { TvControl.toggleMute(it, ::say) } }, lp(26))
-            addView(powerBtn, lp(26))
         }
-    }
-
-    private fun renderPower() {
-        powerBtn.text = if (powerOn) "Power  on" else "Power  off"
-        powerBtn.setBackgroundColor(
-            resources.getColor(if (powerOn) R.color.accent else android.R.color.transparent, null)
-        )
-        withTv { if (powerOn) TvControl.powerOn(it, ::say) else TvControl.powerOff(it, ::say) }
     }
 
     private fun lp(top: Int) = LinearLayout.LayoutParams(

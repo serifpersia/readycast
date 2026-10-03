@@ -4,8 +4,10 @@
 
 <h1 align="center">readycast</h1>
 
-Cast a phone's **secondary display** (Motorola's Ready For / desktop mode, or any
-HDMI-monitor desktop) to an LG webOS TV, with low latency and audio.
+Cast a phone's **secondary display** (Motorola's Ready For / desktop mode,
+Samsung DeX, or any HDMI-monitor desktop) to an LG webOS TV, with low latency
+and audio. Samsung DeX is untested but should work the same way, since it also
+exposes a second display — please report back if you try it.
 
 LG's own screen sharing only ever captures the phone's **main** screen. Its cast
 service mirrors display 0 and nothing else. Ready For does more than that (it
@@ -50,7 +52,7 @@ To build it yourself instead, see [Building](#building).
    prompt on the TV the first time.
 5. Tap **Stop mirroring** when you're done. Closing the app from the task manager also
    stops the capture server; minimising it does not, so you can switch away mid-cast.
-6. The remote buttons (volume, mute, power) work whenever the TV has been
+6. The remote buttons (volume, mute) work whenever the TV has been
    discovered. Start mirroring once at least.
 
 ### Notes
@@ -104,6 +106,12 @@ Shell privileges are enough: that is how scrcpy captures a secondary display ove
 - Android 8.0 (API 26) or newer
 - Root (Magisk) **or** Shizuku for the external display option
 - Phone and TV on the same network; 5 GHz Wi-Fi above ~20 Mbps
+
+## Roadmap
+
+- Java-only capture: replace the bundled `scrcpy-server` with a privileged Java
+  capture helper. Same resolution, bitrate, and FPS controls. Root or Shizuku is
+  still required for the secondary display.
 
 ## Credits
 

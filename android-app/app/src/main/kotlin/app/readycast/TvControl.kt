@@ -2,7 +2,6 @@ package app.readycast
 
 import android.util.Log
 import com.connectsdk.device.ConnectableDevice
-import com.connectsdk.service.capability.PowerControl
 import com.connectsdk.service.capability.VolumeControl
 import com.connectsdk.service.capability.listeners.ResponseListener
 import com.connectsdk.service.command.ServiceCommandError
@@ -50,22 +49,4 @@ object TvControl {
             muted = !muted
             it.setMute(muted, listener("mute", status, if (muted) "TV muted" else "TV unmuted"))
         }
-
-    fun powerOff(device: ConnectableDevice, status: (String, Boolean) -> Unit) {
-        val power = device.getCapability(PowerControl::class.java)
-        if (power == null) {
-            status("TV has no power control", true)
-            return
-        }
-        power.powerOff(listener("powerOff", status, "TV powering off"))
-    }
-
-    fun powerOn(device: ConnectableDevice, status: (String, Boolean) -> Unit) {
-        val power = device.getCapability(PowerControl::class.java)
-        if (power == null) {
-            status("TV has no power control", true)
-            return
-        }
-        power.powerOn(listener("powerOn", status, "TV powering on"))
-    }
 }

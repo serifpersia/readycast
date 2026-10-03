@@ -1,0 +1,42 @@
+# Flow: build the release APK locally, upload it to the `latest` release,
+# then run this workflow. It reads the APK version from the APK file name
+# and retitles `latest` to match. Same version as the title = nothing new, abort.
+name: roll-latest-release
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  roll:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Retitle latest release from its APK
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -e
+          title=$(gh release view latest --json name -q .name)
+          mapfile -t apks < <(gh release view latest --json assets -q '.assets[].name' | grep '\.apk$' || true)
+          if [ "${#apks[@]}" -eq 0 ]; then
+            echo "::error::No APK asset on the latest release. Upload one first, then re-run."
+            exit 1
+          fi
+          new_ver=$(printf '%s\n' "${apks[@]}" | grep -oP 'readycast-\K[0-9]+\.[0-9]+\.[0-9]+(?=-)' | sort -V | tail -1)
+          cur_ver=$(printf '%s' "$title" | grep -oP 'v\K[0-9]+\.[0-9]+\.[0-9]+' || true)
+          echo "Release title: $title (v$cur_ver) / newest APK: v$new_ver"
+          if [ "$new_ver" = "$cur_ver" ]; then
+            echo "::notice::APK is still v$cur_ver, no new version. Aborting."
+            exit 1
+          fi
+          new_apk=$(printf '%s\n' "${apks[@]}" | grep "readycast-$new_ver-" | head -1)
+          gh release edit latest --title "latest(v$new_ver)"
+          for apk in "${apks[@]}"; do
+            if ! printf '%s' "$apk" | grep -q "readycast-$new_ver-"; then
+              gh release delete-asset latest "$apk" --yes
+            fi
+          done
+          echo "latest is now latest(v$new_ver) serving $new_apk"
