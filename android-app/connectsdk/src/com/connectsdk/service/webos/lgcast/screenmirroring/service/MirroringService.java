@@ -74,11 +74,9 @@ public class MirroringService extends Service {
             return;
         }
         sInjected++;
-        h.post(() -> {
-            android.os.Message m = android.os.Message.obtain();
-            m.obj = new com.lge.lib.lgcast.iface.MediaData(ptsMs, annexBFrame);
-            h.sendMessage(m);
-        });
+        android.os.Message m = android.os.Message.obtain();
+        m.obj = new com.lge.lib.lgcast.iface.MediaData(ptsMs, annexBFrame);
+        h.sendMessage(m);
     }
 
     private static int sInjected = 0;

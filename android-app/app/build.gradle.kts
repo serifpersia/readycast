@@ -3,8 +3,8 @@ plugins {
     id("org.jetbrains.kotlin.android")
 }
 
-val readycastVersionName = "1.0.2"
-val readycastVersionCode = 3
+val readycastVersionName = "1.0.3"
+val readycastVersionCode = 4
 
 android {
     namespace = "app.readycast"
