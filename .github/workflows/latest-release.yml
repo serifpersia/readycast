@@ -42,10 +42,32 @@ jobs:
           new_apk=$(printf '%s\n' "${apks[@]}" | grep "readycast-$new_ver-" | head -1)
           mkdir -p carry
           gh release download latest --pattern "$new_apk" --dir carry/
+
+          prev=$(git rev-parse refs/tags/latest 2>/dev/null || true)
+          echo "Previous release commit: ${prev:-none}"
+          {
+            echo "readycast $new_ver"
+            echo
+            if [ -n "$prev" ] && [ "$prev" != "$SHA" ]; then
+              echo "### Changes"
+              echo
+              git log "$prev..$SHA" --no-merges --pretty=format:'- %s (%h)'
+            else
+              echo "First release, or no commits since the last one."
+            fi
+            echo
+            echo
+            echo "APK: \`$new_apk\`"
+            echo
+            echo "Install it from the download below, then pick a TV and start mirroring."
+          } > notes.md
+          cat notes.md
+
           gh release delete latest --yes
           git tag -d latest || true
           git push origin --delete latest || true
           git tag latest "$SHA"
           git push origin latest
-          gh release create latest "carry/$new_apk" --title "latest(v$new_ver)" --target "$SHA"
+          gh release create latest "carry/$new_apk" \
+            --title "latest(v$new_ver)" --notes-file notes.md --target "$SHA"
           echo "latest is now latest(v$new_ver) serving $new_apk at $SHA"
