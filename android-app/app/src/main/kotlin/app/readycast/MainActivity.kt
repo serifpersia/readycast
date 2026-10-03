@@ -46,6 +46,8 @@ class MainActivity : AppCompatActivity() {
     private lateinit var toggle: MaterialButton
     private lateinit var source: Spinner
     private lateinit var encoderCard: LinearLayout
+    private lateinit var tvSpinner: Spinner
+    private var selectedTv: ConnectableDevice? = null
     private lateinit var resSpinner: Spinner
     private lateinit var bitrateBar: SeekBar
     private lateinit var bitrateLabel: TextView
@@ -58,7 +60,13 @@ class MainActivity : AppCompatActivity() {
         if (it.resultCode == RESULT_OK && it.data != null) {
             val ext = pendingExternal
             pendingExternal = false
-            if (ext) startExternal(it.data!!) else SdkMirror.start(this, it.data!!, false, ::say) { started ->
+            val tv = selectedTv
+            if (tv == null) {
+                say("Pick a TV first", true)
+                markStopped()
+                return@registerForActivityResult
+            }
+            if (ext) startExternal(tv, it.data!!) else SdkMirror.start(this, tv, it.data!!, false, ::say) { started ->
                 if (!started) runOnUiThread { stop() }
             }
         } else {
@@ -114,10 +122,14 @@ class MainActivity : AppCompatActivity() {
         minimumHeight = dp(52)
     }
 
-    private fun row(vararg views: View): LinearLayout = LinearLayout(this).apply {
+    private fun slider(bar: SeekBar) = LinearLayout(this).apply {
         orientation = LinearLayout.HORIZONTAL
         gravity = Gravity.CENTER_VERTICAL
-        views.forEach { addView(it, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)) }
+        setPadding(0, dp(6), 0, dp(6))
+        addView(bar, LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT
+        ))
     }
 
     private fun buildUi() {
@@ -134,7 +146,6 @@ class MainActivity : AppCompatActivity() {
         source = spinner(listOf("Main display (phone)", "External display (desktop)"))
         source.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
             override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
-                // LG encodes the main display itself; our settings only feed the external path.
                 if (::encoderCard.isInitialized) encoderCard.visibility = if (position == 0) View.GONE else View.VISIBLE
             }
             override fun onNothingSelected(parent: AdapterView<*>?) = Unit
@@ -205,15 +216,18 @@ class MainActivity : AppCompatActivity() {
                             setPadding(dp(2), 0, dp(2), dp(18))
                         }
                     )
-                    addView(card("SOURCE", source), spaced(top = 0))
+                    addView(card("TV", tvLayout()), spaced(top = 0))
+                    addView(card("SOURCE", source), spaced(top = 16))
                     addView(toggle, spaced(top = 16))
                     encoderCard = card(
                         "ENCODER",
                         LinearLayout(this@MainActivity).apply {
                             orientation = LinearLayout.VERTICAL
                             addView(resSpinner, spaced(top = 2))
-                            addView(row(bitrateLabel, bitrateBar), spaced(top = 12))
-                            addView(row(fpsLabel, fpsBar), spaced(top = 12))
+                            addView(bitrateLabel, spaced(top = 18))
+                            addView(slider(bitrateBar), spaced(top = 2))
+                            addView(fpsLabel, spaced(top = 18))
+                            addView(slider(fpsBar), spaced(top = 2))
                         }
                     )
                     encoderCard.visibility = if (source.selectedItemPosition == 0) View.GONE else View.VISIBLE
@@ -266,6 +280,10 @@ class MainActivity : AppCompatActivity() {
             stop()
             return
         }
+        if (selectedTv == null) {
+            say("Tap Search for TVs and pick one", true)
+            return
+        }
         mirroring = true
         toggle.text = "Stop mirroring"
         toggle.setBackgroundColor(resources.getColor(R.color.danger, null))
@@ -306,6 +324,52 @@ class MainActivity : AppCompatActivity() {
         LinearLayout.LayoutParams.WRAP_CONTENT
     ).apply { topMargin = dp(top) }
 
+    private fun tvLayout(): View {
+        tvSpinner = spinner(listOf("No TVs found"))
+        tvSpinner.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
+                selectedTv = SdkMirror.devices().getOrNull(position)
+            }
+            override fun onNothingSelected(parent: AdapterView<*>?) = Unit
+        }
+        val search = MaterialButton(this, null,
+            com.google.android.material.R.attr.materialButtonOutlinedStyle).apply {
+            text = "Search for TVs"
+            isAllCaps = false
+            textSize = 15f
+            cornerRadius = dp(14)
+            minimumHeight = dp(48)
+            setOnClickListener {
+                SdkMirror.onDevicesChanged = { runOnUiThread { fillTvList() } }
+                SdkMirror.discover(this@MainActivity)
+                say("Searching for TVs...", false)
+            }
+        }
+        SdkMirror.onDevicesChanged = { runOnUiThread { fillTvList() } }
+        return LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            addView(tvSpinner, spaced(top = 2))
+            addView(search, spaced(top = 10))
+        }
+    }
+
+    private fun fillTvList() {
+        val devices = SdkMirror.devices()
+        val previous = selectedTv?.id
+        tvSpinner.adapter = ArrayAdapter(
+            this,
+            R.layout.item_spinner,
+            if (devices.isEmpty()) listOf("No TVs found") else devices.map { "${it.friendlyName} (${it.ipAddress})" }
+        ).apply { setDropDownViewResource(R.layout.item_spinner_dropdown) }
+        val keep = devices.indexOfFirst { it.id == previous }
+        if (keep >= 0) tvSpinner.setSelection(keep)
+        selectedTv = devices.getOrNull(if (keep >= 0) keep else 0)
+        say(
+            if (devices.isEmpty()) "No TVs found yet." else "Found ${devices.size} TV(s).",
+            devices.isEmpty()
+        )
+    }
+
     private fun remoteLayout(): View {
         fun remoteButton(text: String, filled: Boolean = false, onClick: () -> Unit) =
             MaterialButton(this, null, if (filled)
@@ -324,8 +388,9 @@ class MainActivity : AppCompatActivity() {
         return LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             addView(remoteButton("Vol +", true) { withTv { TvControl.volumeUp(it, ::say) } }, lp(0))
-            addView(remoteButton("Vol –") { withTv { TvControl.volumeDown(it, ::say) } }, lp(10))
-            addView(remoteButton("Mute") { withTv { TvControl.toggleMute(it, ::say) } }, lp(26))
+            addView(remoteButton("Vol -") { withTv { TvControl.volumeDown(it, ::say) } }, lp(10))
+            addView(remoteButton("Mute") { withTv { TvControl.toggleMute(it, ::say) } }, lp(10))
+            addView(remoteButton("Power off") { withTv { TvControl.powerOff(it, ::say) } }, lp(10))
         }
     }
 
@@ -335,11 +400,12 @@ class MainActivity : AppCompatActivity() {
     ).apply { topMargin = dp(top) }
 
     private fun applyEncoderSettings() {
-        val (w, _) = RESOLUTIONS[resSpinner.selectedItemPosition]
+        val (w, h) = RESOLUTIONS[resSpinner.selectedItemPosition]
         StreamService.maxWidth = w
+        StreamService.maxHeight = h
         StreamService.bitRate = bitrateMbps() * 1_000_000
         StreamService.maxFps = fps()
-        MirroringService.setExternalSource(w, RESOLUTIONS[resSpinner.selectedItemPosition].second, StreamService.bitRate)
+        MirroringService.setExternalSource(w, h, StreamService.bitRate)
     }
 
     private fun bitrateMbps() = BITRATE_MIN_MBPS + bitrateBar.progress
@@ -402,7 +468,7 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun startExternal(projection: Intent) {
+    private fun startExternal(tv: ConnectableDevice, projection: Intent) {
         val secondary = secondaryDisplayId() ?: return
         externalRunning = true
         StreamService.displayId = secondary
@@ -432,7 +498,7 @@ class MainActivity : AppCompatActivity() {
         }
         say("Mirroring desktop ID $secondary to TV...", false)
         pendingCapture = true
-        SdkMirror.start(this, projection, true, ::say) { started ->
+        SdkMirror.start(this, tv, projection, true, ::say) { started ->
             runOnUiThread {
                 if (started && pendingCapture) {
                     pendingCapture = false
@@ -462,9 +528,9 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun withTv(block: (ConnectableDevice) -> Unit) {
-        val d = SdkMirror.device()
+        val d = selectedTv
         if (d == null) {
-            say("TV not discovered yet - toggle mirroring on once", true)
+            say("Pick a TV first", true)
             return
         }
         try { block(d) } catch (e: Exception) { say("command failed: $e", true) }

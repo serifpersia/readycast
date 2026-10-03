@@ -73,8 +73,9 @@ class StreamService : Service() {
 
         val cmd = "CLASSPATH=${jar.absolutePath} app_process /system/bin " +
             "com.readycast.caster.CastServer " +
-            "display_id=$displayId max_size=$maxWidth video_bit_rate=$bitRate max_fps=$maxFps"
-        Log.d(TAG, "exec: $cmd")
+            "display_id=$displayId max_width=$maxWidth max_height=$maxHeight " +
+            "video_bit_rate=$bitRate max_fps=$maxFps"
+        Log.d(TAG, "advertised to TV: ${maxWidth}x$maxHeight")
 
         try {
             proc = ShellAccess.exec(cmd)
@@ -96,7 +97,6 @@ class StreamService : Service() {
             var bytes = 0L
             val start = System.currentTimeMillis()
             var lastReport = start
-            // stdout of the helper IS the Annex-B stream: no socket, no handshake.
             val input = proc!!.inputStream
             Log.d(TAG, "connected to caster, capturing display $displayId")
             try {
@@ -155,6 +155,7 @@ class StreamService : Service() {
 
         @Volatile var displayId = 0
         @Volatile var maxWidth = 1920
+        @Volatile var maxHeight = 1080
         @Volatile var bitRate = 6_000_000
         @Volatile var maxFps = 60
 

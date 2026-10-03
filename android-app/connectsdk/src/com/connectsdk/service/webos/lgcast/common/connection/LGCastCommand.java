@@ -38,7 +38,20 @@ public class LGCastCommand {
 
     private WebOSTVService mWebOSTVService;
 
+    private final java.util.List<URLServiceSubscription<?>> mSubscriptions = new java.util.ArrayList<>();
+
     private LGCastCommand() {
+    }
+
+    public void close() {
+        for (URLServiceSubscription<?> subscription : mSubscriptions) {
+            try {
+                subscription.unsubscribe();
+            } catch (Exception e) {
+                Logger.error("unsubscribe failed: " + e);
+            }
+        }
+        mSubscriptions.clear();
     }
 
     public static LGCastCommand newInstance(ConnectableDevice connectableDevice) {
@@ -141,7 +154,10 @@ public class LGCastCommand {
             }
         };
 
-        new URLServiceSubscription<ResponseListener<Object>>(mWebOSTVService, ssapUrl, payload, true, listener).send();
+        URLServiceSubscription<ResponseListener<Object>> subscription =
+                new URLServiceSubscription<>(mWebOSTVService, ssapUrl, payload, true, listener);
+        mSubscriptions.add(subscription);
+        subscription.send();
     }
 
     private JSONObject sendServiceCommand(JSONObject payload) {

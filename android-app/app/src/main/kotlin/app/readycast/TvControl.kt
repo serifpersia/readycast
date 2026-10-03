@@ -2,9 +2,12 @@ package app.readycast
 
 import android.util.Log
 import com.connectsdk.device.ConnectableDevice
+import com.connectsdk.service.WebOSTVService
 import com.connectsdk.service.capability.VolumeControl
 import com.connectsdk.service.capability.listeners.ResponseListener
+import com.connectsdk.service.command.ServiceCommand
 import com.connectsdk.service.command.ServiceCommandError
+import org.json.JSONObject
 
 object TvControl {
     private const val TAG = "TVCTL"
@@ -49,4 +52,29 @@ object TvControl {
             muted = !muted
             it.setMute(muted, listener("mute", status, if (muted) "TV muted" else "TV unmuted"))
         }
+
+    fun powerOff(device: ConnectableDevice, status: (String, Boolean) -> Unit) {
+        val svc = device.getServiceByName(WebOSTVService.ID) as? WebOSTVService
+        if (svc == null) {
+            status("TV power control unavailable", true)
+            return
+        }
+        ServiceCommand<ResponseListener<Any>>(
+            svc,
+            "ssap://system/turnOff",
+            null,
+            true,
+            object : ResponseListener<Any> {
+                override fun onSuccess(responseObject: Any) {
+                    Log.d(TAG, "turnOff ok")
+                    status("TV powering off", false)
+                }
+
+                override fun onError(error: ServiceCommandError) {
+                    Log.e(TAG, "turnOff failed: $error")
+                    status("turnOff failed: ${error.message}", true)
+                }
+            }
+        ).send()
+    }
 }

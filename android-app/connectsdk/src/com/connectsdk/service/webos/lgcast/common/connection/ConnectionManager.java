@@ -53,6 +53,11 @@ public class ConnectionManager implements ConnectableDeviceListener {
     private boolean mKeepConnection;
     private Timer mKeepAliveTimer;
 
+    private boolean mSubscribed;
+    private boolean mConnectSent;
+
+    private static final long CONNECT_SETTLE_DELAY_MS = 300;
+
     public ConnectionManager(String serviceName) {
         mServiceName = serviceName;
     }
@@ -97,7 +102,10 @@ public class ConnectionManager implements ConnectableDeviceListener {
         mKeepAliveTimer = null;
 
         if (mLGCastCommand != null) mLGCastCommand.sendTeardown(mServiceName);
+        if (mLGCastCommand != null) mLGCastCommand.close();
         mLGCastCommand = null;
+        mSubscribed = false;
+        mConnectSent = false;
 
         if (mConnectableDevice != null) mConnectableDevice.removeListener(this);
         if (mConnectableDevice != null && mKeepConnection == false) mConnectableDevice.disconnect();
@@ -171,6 +179,8 @@ public class ConnectionManager implements ConnectableDeviceListener {
     @Override
     public void onDeviceReady(ConnectableDevice device) {
         Logger.print("onDeviceReady");
+        if (mSubscribed) return;
+        mSubscribed = true;
         if (mConnectionHandler != null) {
             mConnectionHandler.post(this::subscribe);
         }
@@ -223,7 +233,11 @@ public class ConnectionManager implements ConnectableDeviceListener {
 
     private void handleSubscribed(@NonNull JSONObject response) {
         Logger.print("handleSubscribed");
-        if (response.optBoolean(KEY_SUBSCRIBED, false) == true) sendConnect();
+        if (response.optBoolean(KEY_SUBSCRIBED, false) == true) {
+            if (mConnectSent) return;
+            mConnectSent = true;
+            if (mConnectionHandler != null) mConnectionHandler.post(this::sendConnect, CONNECT_SETTLE_DELAY_MS);
+        }
         else callOnConnectionFailed("subscribe failure");
     }
 

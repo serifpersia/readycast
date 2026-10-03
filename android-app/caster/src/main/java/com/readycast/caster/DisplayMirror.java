@@ -5,7 +5,6 @@ import android.hardware.display.VirtualDisplay;
 import android.os.IBinder;
 import android.view.Surface;
 
-/** Mirrors any display onto a Surface. Runs as shell, so hidden APIs are reachable. */
 public final class DisplayMirror {
 
     public static final class Display {
@@ -69,13 +68,11 @@ public final class DisplayMirror {
         }
     }
 
-    /** Scale to fit inside maxSize, keeping aspect. Dimensions come out even. */
-    public static int[] fit(int width, int height, int maxSize) {
-        double scale = (double) maxSize / Math.max(width, height);
-        if (scale > 1) {
-            scale = 1;
+    public static int[] size(int width, int height) {
+        if (width <= 0 || height <= 0) {
+            throw new IllegalArgumentException("max_width and max_height are required");
         }
-        return new int[]{even((int) (width * scale)), even((int) (height * scale))};
+        return new int[]{even(width), even(height)};
     }
 
     private static int even(int v) {

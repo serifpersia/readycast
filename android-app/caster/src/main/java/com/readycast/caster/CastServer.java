@@ -11,12 +11,6 @@ import java.io.FileOutputStream;
 import java.io.OutputStream;
 import java.nio.ByteBuffer;
 
-/**
- * Lean secondary-display capture. Mirrors one display, encodes H.264 from the
- * encoder Surface, writes raw Annex-B to stdout. Logs go to stderr.
- *
- * <p>Args as key=value: display_id, max_size, video_bit_rate, max_fps.
- */
 public final class CastServer {
 
     private CastServer() {
@@ -24,7 +18,8 @@ public final class CastServer {
 
     public static void main(String[] args) throws Exception {
         int displayId = opt(args, "display_id=", 1);
-        int maxSize = opt(args, "max_size=", 1920);
+        int maxWidth = opt(args, "max_width=", 1920);
+        int maxHeight = opt(args, "max_height=", 1080);
         int bitRate = opt(args, "video_bit_rate=", 6000000);
         float maxFps = Float.parseFloat(str(args, "max_fps=", "60"));
 
@@ -33,7 +28,7 @@ public final class CastServer {
             log("display " + displayId + " not found, exiting");
             return;
         }
-        int[] size = DisplayMirror.fit(display.width, display.height, maxSize);
+        int[] size = DisplayMirror.size(maxWidth, maxHeight);
         log("capturing display " + displayId + " (" + display.width + "x" + display.height
                 + ") at " + size[0] + "x" + size[1] + " " + bitRate / 1000000 + "Mbps");
 
@@ -71,13 +66,11 @@ public final class CastServer {
         try {
             codec.stop();
         } catch (Exception e) {
-            // ignore
         }
         codec.release();
         log("stopped");
     }
 
-    /** Copies encoder output to stdout until the pipe breaks (app killed us). */
     private static void drain(MediaCodec codec) {
         OutputStream out = new FileOutputStream(FileDescriptor.out);
         MediaCodec.BufferInfo info = new MediaCodec.BufferInfo();
