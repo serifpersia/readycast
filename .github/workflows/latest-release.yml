@@ -1,8 +1,8 @@
-# Flow: build the release APK locally, upload it to the `latest` release,
-# then run this workflow. It reads the APK version from the APK file name;
-# same version as the title = nothing new, abort. Otherwise the release and
-# the `latest` tag are deleted and recreated at the current commit, so the
-# APK and the auto-generated source archives are all fresh.
+# You build the release APK, drop it on the `latest` release, and run this.
+# It checks the APK file name: if the version matches the release title there
+# is nothing new and it stops. Otherwise it rebuilds the whole `latest`
+# release (release + tag) at the current commit, so the APK and the source
+# code downloads are never stale.
 name: roll-latest-release
 
 on:
@@ -19,7 +19,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Recreate latest release from its APK
+      - name: Roll the latest release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REPO: ${{ github.repository }}
