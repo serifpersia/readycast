@@ -1,6 +1,8 @@
 # Flow: build the release APK locally, upload it to the `latest` release,
-# then run this workflow. It reads the APK version from the APK file name
-# and retitles `latest` to match. Same version as the title = nothing new, abort.
+# then run this workflow. It reads the APK version from the APK file name;
+# same version as the title = nothing new, abort. Otherwise the release and
+# the `latest` tag are deleted and recreated at the current commit, so the
+# APK and the auto-generated source archives are all fresh.
 name: roll-latest-release
 
 on:
@@ -13,10 +15,15 @@ jobs:
   roll:
     runs-on: ubuntu-latest
     steps:
-      - name: Retitle latest release from its APK
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Recreate latest release from its APK
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REPO: ${{ github.repository }}
+          SHA: ${{ github.sha }}
         run: |
           set -e
           title=$(gh release view latest --json name -q .name)
@@ -33,10 +40,12 @@ jobs:
             exit 1
           fi
           new_apk=$(printf '%s\n' "${apks[@]}" | grep "readycast-$new_ver-" | head -1)
-          gh release edit latest --title "latest(v$new_ver)"
-          for apk in "${apks[@]}"; do
-            if ! printf '%s' "$apk" | grep -q "readycast-$new_ver-"; then
-              gh release delete-asset latest "$apk" --yes
-            fi
-          done
-          echo "latest is now latest(v$new_ver) serving $new_apk"
+          mkdir -p carry
+          gh release download latest --pattern "$new_apk" --dir carry/
+          gh release delete latest --yes
+          git tag -d latest || true
+          git push origin --delete latest || true
+          git tag latest "$SHA"
+          git push origin latest
+          gh release create latest "carry/$new_apk" --title "latest(v$new_ver)" --target "$SHA"
+          echo "latest is now latest(v$new_ver) serving $new_apk at $SHA"
