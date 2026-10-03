@@ -1,4 +1,4 @@
-﻿package app.readycast
+package app.readycast
 
 import android.content.Context
 import android.content.Intent
@@ -330,6 +330,7 @@ class MainActivity : AppCompatActivity() {
             override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
                 selectedTv = SdkMirror.devices().getOrNull(position)
             }
+
             override fun onNothingSelected(parent: AdapterView<*>?) = Unit
         }
         val search = MaterialButton(this, null,
@@ -340,7 +341,6 @@ class MainActivity : AppCompatActivity() {
             cornerRadius = dp(14)
             minimumHeight = dp(48)
             setOnClickListener {
-                SdkMirror.onDevicesChanged = { runOnUiThread { fillTvList() } }
                 SdkMirror.discover(this@MainActivity)
                 say("Searching for TVs...", false)
             }
@@ -350,6 +350,20 @@ class MainActivity : AppCompatActivity() {
             orientation = LinearLayout.VERTICAL
             addView(tvSpinner, spaced(top = 2))
             addView(search, spaced(top = 10))
+        }
+    }
+
+    private fun powerOff() {
+        val tv = selectedTv
+        if (tv == null) {
+            say("Pick a TV first", true)
+            return
+        }
+        if (tv.isConnected) {
+            TvControl.powerOff(tv, ::say)
+        } else {
+            say("Connecting to ${tv.friendlyName}...", false)
+            SdkMirror.withConnection(tv) { TvControl.powerOff(tv, ::say) }
         }
     }
 
@@ -390,7 +404,7 @@ class MainActivity : AppCompatActivity() {
             addView(remoteButton("Vol +", true) { withTv { TvControl.volumeUp(it, ::say) } }, lp(0))
             addView(remoteButton("Vol -") { withTv { TvControl.volumeDown(it, ::say) } }, lp(10))
             addView(remoteButton("Mute") { withTv { TvControl.toggleMute(it, ::say) } }, lp(10))
-            addView(remoteButton("Power off") { withTv { TvControl.powerOff(it, ::say) } }, lp(10))
+            addView(remoteButton("Power off") { powerOff() }, lp(10))
         }
     }
 
@@ -531,6 +545,10 @@ class MainActivity : AppCompatActivity() {
         val d = selectedTv
         if (d == null) {
             say("Pick a TV first", true)
+            return
+        }
+        if (!mirroring) {
+            say("Start mirroring to use the remote", true)
             return
         }
         try { block(d) } catch (e: Exception) { say("command failed: $e", true) }

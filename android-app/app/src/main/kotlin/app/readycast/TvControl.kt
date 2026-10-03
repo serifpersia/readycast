@@ -7,10 +7,11 @@ import com.connectsdk.service.capability.VolumeControl
 import com.connectsdk.service.capability.listeners.ResponseListener
 import com.connectsdk.service.command.ServiceCommand
 import com.connectsdk.service.command.ServiceCommandError
-import org.json.JSONObject
 
 object TvControl {
     private const val TAG = "TVCTL"
+    private const val GET_POWER = "ssap://com.webos.service.tvpower/power/getPowerState"
+    private const val TURN_OFF = "ssap://system/turnOff"
 
     @Volatile private var muted = false
 
@@ -61,7 +62,7 @@ object TvControl {
         }
         ServiceCommand<ResponseListener<Any>>(
             svc,
-            "ssap://system/turnOff",
+            TURN_OFF,
             null,
             true,
             object : ResponseListener<Any> {
@@ -73,6 +74,31 @@ object TvControl {
                 override fun onError(error: ServiceCommandError) {
                     Log.e(TAG, "turnOff failed: $error")
                     status("turnOff failed: ${error.message}", true)
+                }
+            }
+        ).send()
+    }
+
+    private fun send(
+        svc: WebOSTVService,
+        uri: String,
+        status: (String, Boolean) -> Unit,
+        onSuccess: (Any) -> Unit
+    ) {
+        ServiceCommand<ResponseListener<Any>>(
+            svc,
+            uri,
+            null,
+            true,
+            object : ResponseListener<Any> {
+                override fun onSuccess(responseObject: Any) {
+                    Log.d(TAG, "$uri ok")
+                    onSuccess(responseObject)
+                }
+
+                override fun onError(error: ServiceCommandError) {
+                    Log.e(TAG, "$uri failed: $error")
+                    status("$uri failed: ${error.message}", true)
                 }
             }
         ).send()

@@ -4,11 +4,13 @@ import android.content.Context
 import android.content.Intent
 import android.util.Log
 import com.connectsdk.device.ConnectableDevice
+import com.connectsdk.device.ConnectableDeviceListener
 import com.connectsdk.discovery.CapabilityFilter
 import com.connectsdk.discovery.DiscoveryManager
 import com.connectsdk.discovery.DiscoveryManagerListener
-import com.connectsdk.service.command.ServiceCommandError
+import com.connectsdk.service.DeviceService
 import com.connectsdk.service.capability.ScreenMirroringControl
+import com.connectsdk.service.command.ServiceCommandError
 import java.util.concurrent.CopyOnWriteArrayList
 
 object SdkMirror {
@@ -34,6 +36,44 @@ object SdkMirror {
     }
 
     fun devices(): List<ConnectableDevice> = found.toList()
+
+    fun withConnection(device: ConnectableDevice, block: () -> Unit) {
+        if (device.isConnected) {
+            block()
+            return
+        }
+        val once = object : ConnectableDeviceListener {
+            override fun onDeviceReady(device: ConnectableDevice) {
+                device.removeListener(this)
+                block()
+            }
+
+            override fun onDeviceDisconnected(device: ConnectableDevice) {
+                device.removeListener(this)
+            }
+
+            override fun onConnectionFailed(device: ConnectableDevice, error: ServiceCommandError) {
+                device.removeListener(this)
+                Log.e("SDKMIRROR", "connect failed: $error")
+            }
+
+            override fun onCapabilityUpdated(
+                device: ConnectableDevice,
+                added: MutableList<String>,
+                removed: MutableList<String>
+            ) = Unit
+
+            override fun onPairingRequired(
+                device: ConnectableDevice,
+                service: DeviceService,
+                pairingType: DeviceService.PairingType
+            ) {
+                device.removeListener(this)
+            }
+        }
+        device.addListener(once)
+        device.connect()
+    }
 
     fun discover(ctx: Context) {
         appContext = ctx.applicationContext
