@@ -17,3 +17,4 @@ dependencyResolutionManagement {
 rootProject.name = "readycast"
 include(":app")
 include(":connectsdk")
+include(":caster")

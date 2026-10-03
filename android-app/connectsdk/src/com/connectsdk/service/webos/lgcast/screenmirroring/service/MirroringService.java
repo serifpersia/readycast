@@ -41,7 +41,7 @@ import org.json.JSONObject;
 
 public class MirroringService extends Service {
 
-    // ---- MiraStream fork: inject already-encoded video (scrcpy capture of a secondary display) ----
+    // ---- MiraStream fork: inject already-encoded video (caster capture of a secondary display) ----
     private static volatile boolean sExternalVideo = false;
     private static volatile Handler sVideoSink = null;
 

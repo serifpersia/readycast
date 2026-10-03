@@ -1,6 +1,7 @@
 # Build output
 android-app/app/build/
 android-app/build/
+android-app/caster/build/
 android-app/connectsdk/build/
 android-app/.gradle/
 android-app/.kotlin/

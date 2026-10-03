@@ -20,7 +20,7 @@ public final class DefaultPlatform {
         final HashMap<String, String> devicesList = new HashMap<>();
         final String ssdp = "com.connectsdk.discovery.provider.SSDPDiscoveryProvider";
         final String zeroconf = "com.connectsdk.discovery.provider.ZeroconfDiscoveryProvider";
-        // ponytail: no Google Cast module in this fork, so Cast entries are left out
+        // no Google Cast module in this fork, so Cast entries are left out
         devicesList.put("com.connectsdk.service.DIALService", ssdp);
         devicesList.put("com.connectsdk.service.DLNAService", ssdp);
         devicesList.put("com.connectsdk.service.NetcastTVService", ssdp);

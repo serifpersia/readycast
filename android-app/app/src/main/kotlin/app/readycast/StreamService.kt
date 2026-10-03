@@ -3,11 +3,10 @@ package app.readycast
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
+import android.app.PendingIntent
 import android.app.Service
 import android.content.Context
 import android.content.Intent
-import android.net.LocalSocket
-import android.net.LocalSocketAddress
 import android.os.Build
 import android.os.IBinder
 import android.util.Log
@@ -19,9 +18,6 @@ class StreamService : Service() {
     private val running = AtomicBoolean(false)
     private var readerThread: Thread? = null
     private var proc: Process? = null
-    private var scid = 0
-
-    private fun socketName() = "scrcpy_%08x".format(scid)
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -40,6 +36,13 @@ class StreamService : Service() {
                 .setContentTitle("readycast")
                 .setContentText("Capturing display $displayId")
                 .setSmallIcon(android.R.drawable.ic_media_play)
+                .setContentIntent(
+                    PendingIntent.getActivity(
+                        this, 0, Intent(this, MainActivity::class.java),
+                        PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+                    )
+                )
+                .setOngoing(true)
                 .build()
         )
     }
@@ -57,25 +60,20 @@ class StreamService : Service() {
     private fun startCapture() {
         running.set(true)
         try {
-            ShellAccess.exec("pkill -f scrcpy.Server")?.waitFor(3, java.util.concurrent.TimeUnit.SECONDS)
+            ShellAccess.exec("pkill -f com.readycast.caster")?.waitFor(3, java.util.concurrent.TimeUnit.SECONDS)
         } catch (_: Exception) {}
-        scid = (System.nanoTime() and 0xFFFF).toInt() * 7919 % 0xFFFFFF
-        val jar = File(filesDir, "scrcpy-server")
+        val jar = File(filesDir, "caster-server")
         try {
-            assets.open("scrcpy-server").use { input -> jar.outputStream().use { input.copyTo(it) } }
+            assets.open("caster-server").use { input -> jar.outputStream().use { input.copyTo(it) } }
         } catch (e: Exception) {
-            Log.e(TAG, "could not unpack scrcpy-server: $e")
+            Log.e(TAG, "could not unpack caster-server: $e")
             running.set(false)
             return
         }
 
         val cmd = "CLASSPATH=${jar.absolutePath} app_process /system/bin " +
-            "com.genymobile.scrcpy.Server $SCRCPY_VERSION " +
-            "scid=%08x".format(scid) + " tunnel_forward=true video=true audio=false control=false " +
-            "video_codec=h264 " +
-            "video_bit_rate=$bitRate max_fps=$maxFps max_size=$maxWidth display_id=$displayId " +
-            "show_touches=false stay_awake=true cleanup=false " +
-            "send_device_meta=false send_stream_meta=false send_frame_meta=false send_dummy_byte=false"
+            "com.readycast.caster.CastServer " +
+            "display_id=$displayId max_size=$maxWidth video_bit_rate=$bitRate max_fps=$maxFps"
         Log.d(TAG, "exec: $cmd")
 
         try {
@@ -91,7 +89,6 @@ class StreamService : Service() {
         }
         Log.d(TAG, "started via ${ShellAccess.mode()}")
         logStream(proc!!.errorStream, "err")
-        logStream(proc!!.inputStream, "out")
 
         readerThread = Thread({
             val splitter = NalSplitter()
@@ -99,24 +96,10 @@ class StreamService : Service() {
             var bytes = 0L
             val start = System.currentTimeMillis()
             var lastReport = start
-            var socket: LocalSocket? = null
+            // stdout of the helper IS the Annex-B stream: no socket, no handshake.
+            val input = proc!!.inputStream
+            Log.d(TAG, "connected to caster, capturing display $displayId")
             try {
-                while (running.get()) {
-                    try {
-                        val s = LocalSocket()
-                        s.connect(LocalSocketAddress(socketName(), LocalSocketAddress.Namespace.ABSTRACT))
-                        socket = s
-                        break
-                    } catch (_: Exception) {
-                        Thread.sleep(100)
-                    }
-                }
-                if (socket == null) {
-                    Log.e(TAG, "scrcpy-server never opened its socket")
-                    return@Thread
-                }
-                Log.d(TAG, "connected to scrcpy-server, capturing display $displayId")
-                val input = socket!!.inputStream
                 while (running.get()) {
                     val n = try {
                         input.read(chunk)
@@ -137,12 +120,8 @@ class StreamService : Service() {
                 }
             } catch (e: Exception) {
                 if (running.get()) Log.e(TAG, "reader failed: $e")
-            } finally {
-                try {
-                    socket?.close()
-                } catch (_: Exception) {}
             }
-        }, "scrcpy-reader").apply { start() }
+        }, "caster-reader").apply { start() }
     }
 
     private fun logStream(stream: java.io.InputStream, tag: String) {
@@ -151,7 +130,7 @@ class StreamService : Service() {
                 stream.bufferedReader().forEachLine { Log.d(TAG, "$tag: $it") }
             } catch (_: Exception) {
             }
-        }, "scrcpy-$tag").apply { isDaemon = true; start() }
+        }, "caster-$tag").apply { isDaemon = true; start() }
     }
 
     private fun stopCapture() {
@@ -160,7 +139,7 @@ class StreamService : Service() {
             proc?.destroy()
         } catch (_: Exception) {}
         try {
-            ShellAccess.exec("pkill -f scrcpy.Server")?.waitFor(3, java.util.concurrent.TimeUnit.SECONDS)
+            ShellAccess.exec("pkill -f com.readycast.caster")?.waitFor(3, java.util.concurrent.TimeUnit.SECONDS)
         } catch (_: Exception) {}
         readerThread?.interrupt()
         nalSink = null
@@ -173,7 +152,6 @@ class StreamService : Service() {
 
     companion object {
         private const val TAG = "READYCAST"
-        private const val SCRCPY_VERSION = "4.1"
 
         @Volatile var displayId = 0
         @Volatile var maxWidth = 1920

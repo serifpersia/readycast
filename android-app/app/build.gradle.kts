@@ -3,8 +3,8 @@ plugins {
     id("org.jetbrains.kotlin.android")
 }
 
-val readycastVersionName = "1.0.1"
-val readycastVersionCode = 2
+val readycastVersionName = "1.0.2"
+val readycastVersionCode = 3
 
 android {
     namespace = "app.readycast"
@@ -62,7 +62,11 @@ android {
                 "com.serifpersia.readycast-$readycastVersionName-${buildType.name}.apk"
         }
     }
+
+    sourceSets.getByName("main").assets.srcDir("${layout.buildDirectory.get().asFile}/generated/caster")
 }
+
+tasks.named("preBuild") { dependsOn(":caster:casterServer") }
 
 dependencies {
     implementation("androidx.core:core-ktx:1.15.0")
